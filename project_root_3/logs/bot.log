@@ -1,0 +1,73 @@
+2025-06-16 00:43:22,305 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-16 00:43:22,345 [INFO] [__main__] No existing indices found. Building new ones...
+2025-06-16 00:43:22,346 [INFO] [__main__] Building new indices...
+2025-06-16 00:43:22,347 [INFO] [__main__] Found 3 files to process
+2025-06-16 00:43:35,121 [INFO] [__main__] Semantic deduplication: 425 → 281 unique chunks (threshold=0.91)
+2025-06-16 00:43:35,171 [INFO] [__main__] Processed Inform_from_site_Auto.xlsx: 169984 words -> 281 unique chunks
+2025-06-16 00:43:35,953 [INFO] [__main__] Semantic deduplication: 26 → 26 unique chunks (threshold=0.91)
+2025-06-16 00:43:36,017 [INFO] [__main__] Processed Оферта от Альфа-Банка.pdf: 10205 words -> 26 unique chunks
+2025-06-16 00:43:36,869 [INFO] [__main__] Semantic deduplication: 17 → 17 unique chunks (threshold=0.91)
+2025-06-16 00:43:36,872 [INFO] [__main__] Processed СТОК Альянс Тракс 09.06.2025.pdf: 6505 words -> 17 unique chunks
+2025-06-16 00:43:44,022 [INFO] [__main__] Semantic deduplication: 324 → 324 unique chunks (threshold=0.91)
+2025-06-16 00:43:44,024 [INFO] [__main__] Total unique chunks after global deduplication: 324
+2025-06-16 00:43:44,026 [INFO] [__main__] Generating embeddings...
+2025-06-16 00:43:51,623 [INFO] [__main__] Indices built and saved: 324 unique chunks, index type: <class 'faiss.swigfaiss_avx2.IndexFlatL2'>
+2025-06-16 00:43:51,650 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T21:43:22.348608', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-16 00:43:51,913 [INFO] [__main__] Telegram bot connection OK
+2025-06-16 00:43:51,915 [CRITICAL] [__main__] Unexpected error: object bool can't be used in 'await' expression
+2025-06-16 00:43:52,614 [INFO] [__main__] Message posted to Telegram (id=31)
+2025-06-16 00:43:52,665 [ERROR] [__main__] Failed to send error notification: object int can't be used in 'await' expression
+2025-06-16 00:43:52,674 [INFO] [__main__] Final statistics:
+2025-06-16 00:43:52,682 [INFO] [__main__] total_topics: 0
+2025-06-16 00:43:52,687 [INFO] [__main__] processed_topics: 0
+2025-06-16 00:43:52,692 [INFO] [__main__] failed_topics: 0
+2025-06-16 00:43:52,695 [INFO] [__main__] start_time: None
+2025-06-16 00:43:52,700 [INFO] [__main__] current_topic: None
+2025-06-16 00:43:52,703 [INFO] [__main__] last_error: None
+2025-06-16 00:43:52,707 [INFO] [__main__] last_processing_time: None
+2025-06-16 00:43:52,710 [INFO] [__main__] total_chars_generated: 0
+2025-06-16 00:43:52,714 [INFO] [__main__] avg_chars_per_topic: 0.0
+2025-06-16 00:43:52,718 [INFO] [__main__] success_rate: 0
+2025-06-16 00:43:52,721 [INFO] [__main__] System shutdown complete
+2025-06-16 00:58:45,861 [INFO] [__main__] Loaded usage statistics successfully
+2025-06-16 00:59:00,266 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-16 00:59:00,318 [INFO] [__main__] Loading indices...
+2025-06-16 00:59:00,395 [INFO] [__main__] Loaded 324 chunks
+2025-06-16 00:59:00,444 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T21:43:22.348608', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-16 00:59:00,697 [INFO] [__main__] Telegram bot connection OK
+2025-06-16 00:59:00,698 [CRITICAL] [__main__] Unexpected error: object bool can't be used in 'await' expression
+2025-06-16 00:59:00,918 [INFO] [__main__] Message posted to Telegram (id=32)
+2025-06-16 00:59:00,951 [ERROR] [__main__] Failed to send error notification: object int can't be used in 'await' expression
+2025-06-16 00:59:00,953 [INFO] [__main__] Final statistics:
+2025-06-16 00:59:00,954 [INFO] [__main__] total_topics: 0
+2025-06-16 00:59:00,955 [INFO] [__main__] processed_topics: 0
+2025-06-16 00:59:00,957 [INFO] [__main__] failed_topics: 0
+2025-06-16 00:59:00,958 [INFO] [__main__] start_time: None
+2025-06-16 00:59:00,959 [INFO] [__main__] current_topic: None
+2025-06-16 00:59:00,960 [INFO] [__main__] last_error: None
+2025-06-16 00:59:00,962 [INFO] [__main__] last_processing_time: None
+2025-06-16 00:59:00,963 [INFO] [__main__] total_chars_generated: 0
+2025-06-16 00:59:00,973 [INFO] [__main__] avg_chars_per_topic: 0.0
+2025-06-16 00:59:00,974 [INFO] [__main__] success_rate: 0
+2025-06-16 00:59:00,976 [INFO] [__main__] System shutdown complete
+2025-06-16 01:06:26,314 [INFO] [__main__] Loaded usage statistics successfully
+2025-06-16 01:06:40,136 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-16 01:06:40,141 [INFO] [__main__] Loading indices...
+2025-06-16 01:06:40,215 [INFO] [__main__] Loaded 324 chunks
+2025-06-16 01:06:40,261 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T21:43:22.348608', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-16 01:06:40,538 [INFO] [__main__] Telegram bot connection OK
+2025-06-16 01:06:40,609 [CRITICAL] [__main__] Unexpected error: object bool can't be used in 'await' expression
+2025-06-16 01:06:40,861 [INFO] [__main__] Message posted to Telegram (id=33)
+2025-06-16 01:06:40,862 [ERROR] [__main__] Failed to send error notification: object int can't be used in 'await' expression
+2025-06-16 01:06:40,864 [INFO] [__main__] Final statistics:
+2025-06-16 01:06:40,865 [INFO] [__main__] total_topics: 0
+2025-06-16 01:06:40,866 [INFO] [__main__] processed_topics: 0
+2025-06-16 01:06:40,867 [INFO] [__main__] failed_topics: 0
+2025-06-16 01:06:40,868 [INFO] [__main__] start_time: None
+2025-06-16 01:06:40,869 [INFO] [__main__] current_topic: None
+2025-06-16 01:06:40,870 [INFO] [__main__] last_error: None
+2025-06-16 01:06:40,871 [INFO] [__main__] last_processing_time: None
+2025-06-16 01:06:40,872 [INFO] [__main__] total_chars_generated: 0
+2025-06-16 01:06:40,873 [INFO] [__main__] avg_chars_per_topic: 0.0
+2025-06-16 01:06:40,874 [INFO] [__main__] success_rate: 0
+2025-06-16 01:06:40,875 [INFO] [__main__] System shutdown complete

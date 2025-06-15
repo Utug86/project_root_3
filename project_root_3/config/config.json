@@ -1,0 +1,53 @@
+{
+    "version": "1.0.0",
+    "environment": "production",
+    "telegram": {
+        "bot_token_file": "config/telegram_token.txt",
+        "channel_id_file": "config/telegram_channel.txt",
+        "retry_attempts": 3,
+        "retry_delay": 3.0,
+        "enable_preview": true,
+        "max_caption_length": 1024
+    },
+    "language_model": {
+        "url": "http://localhost:1234/v1/chat/completions",
+        "model_name": "qwen3-32b",
+        "max_tokens": 4096,
+        "max_chars": 20000,
+        "temperature": 0.7,
+        "timeout": 900,
+        "history_limit": 3,
+        "system_message": "Вы — эксперт по бровям и ресницам."
+    },
+    "retrieval": {
+        "chunk_size": 500,
+        "overlap": 100,
+        "top_k_title": 2,
+        "top_k_faiss": 8,
+        "top_k_final": 3,
+        "embedding_model": "all-MiniLM-L6-v2",
+        "cross_encoder": "cross-encoder/stsb-roberta-large"
+    },
+    "system": {
+        "chunk_usage_limit": 10,
+        "usage_reset_days": 7,
+        "diversity_boost": 0.3,
+        "max_retries": 3,
+        "backoff_factor": 1.5
+    },
+    "paths": {
+        "data_dir": "data",
+        "log_dir": "logs",
+        "inform_dir": "inform",
+        "media_dir": "media",
+        "index_file": "data/faiss_index.idx",
+        "context_file": "data/faiss_contexts.json",
+        "usage_stats_file": "data/usage_statistics.json",
+        "processed_topics_file": "data/state.json"
+    },
+    "temp_files": {
+        "cleanup_interval_hours": 24,
+        "max_size_mb": 1000,
+        "min_free_space_mb": 500
+    }
+}
