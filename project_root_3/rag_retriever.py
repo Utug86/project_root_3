@@ -14,6 +14,10 @@ from rag_file_utils import extract_text_from_file
 def notify_admin(message: str) -> None:
     logging.warning(f"[ADMIN NOTIFY] {message}")
 
+class RetrieverIndexRebuildError(Exception):
+    """Ошибка явного rebuild индекса, если восстановление невозможно."""
+    pass
+
 class HybridRetriever:
     """
     Гибридный ретривер: поиск релевантных чанков по FAISS-индексу и кросс-энкодеру.
@@ -84,18 +88,34 @@ class HybridRetriever:
                 idx_sig = self.index_metadata.get("index_signature")
                 expected_sig = self._get_index_signature()
                 if idx_sig != expected_sig:
-                    self.logger.warning("Index signature mismatch. Rebuilding index...")
-                    notify_admin("HybridRetriever: Index signature mismatch, rebuild triggered.")
-                    rebuild_needed = True
+                    self.logger.warning("Index signature mismatch. Rebuild required.")
+                    notify_admin("HybridRetriever: Index signature mismatch, rebuild required. Reason: Model config or data changed.")
+                    rebuild_needed = self._interactive_rebuild_prompt()
             except Exception as e:
-                self.logger.warning(f"Failed to load indices: {e}. Rebuilding...")
-                notify_admin(f"HybridRetriever: Failed to load indices: {e}. Rebuilding.")
-                rebuild_needed = True
+                self.logger.warning(f"Failed to load indices: {e}. Rebuild required.")
+                notify_admin(f"HybridRetriever: Failed to load indices: {e}. Rebuild required. Reason: {e}")
+                rebuild_needed = self._interactive_rebuild_prompt()
         else:
-            self.logger.info("No existing indices found. Building new ones...")
+            self.logger.info("No existing indices found. Build required.")
             rebuild_needed = True
         if rebuild_needed:
-            self._build_indices()
+            if self._can_build_indices():
+                self._build_indices()
+            else:
+                raise RetrieverIndexRebuildError("Cannot rebuild index: no valid source data in inform_dir.")
+
+    def _interactive_rebuild_prompt(self) -> bool:
+        """
+        Можно заменить на интерактивный запрос, но на сервере всегда rebuild.
+        """
+        self.logger.info("Triggering index rebuild due to error or signature mismatch.")
+        return True
+
+    def _can_build_indices(self) -> bool:
+        """Проверяет, есть ли валидные исходные файлы для индексации."""
+        inform_files = [f for f in self.inform_dir.iterdir()
+                        if f.suffix.lower() in [".txt", ".html", ".csv", ".xlsx", ".xlsm", ".doc", ".docx", ".pdf"]]
+        return bool(inform_files)
 
     def _load_indices(self) -> None:
         self.logger.info("Loading indices...")
@@ -135,7 +155,11 @@ class HybridRetriever:
         Базовая нормализация текста (html → plain, lower, clean).
         """
         import re
-        from bs4 import BeautifulSoup
+        try:
+            from bs4 import BeautifulSoup
+        except ImportError:
+            self.logger.error("BeautifulSoup4 not installed. Install via 'pip install beautifulsoup4'")
+            raise
         text = BeautifulSoup(text, "html.parser").get_text(separator=" ")
         text = text.lower()
         text = re.sub(r'\s+', ' ', text)
@@ -177,7 +201,7 @@ class HybridRetriever:
                         if f.suffix.lower() in [".txt", ".html", ".csv", ".xlsx", ".xlsm", ".doc", ".docx", ".pdf"]]
         if not inform_files:
             notify_admin(f"HybridRetriever: No suitable files in {self.inform_dir}")
-            raise RuntimeError(f"No suitable files in {self.inform_dir}")
+            raise RetrieverIndexRebuildError(f"No suitable files in {self.inform_dir}")
         self.logger.info(f"Found {len(inform_files)} files to process")
         index_time = datetime.datetime.utcnow().isoformat()
         for file in inform_files:
@@ -209,7 +233,7 @@ class HybridRetriever:
                 notify_admin(f"HybridRetriever: Error processing file {file}: {e}")
         if not metadata:
             notify_admin("HybridRetriever: No valid chunks created from files")
-            raise RuntimeError("No valid chunks created from files")
+            raise RetrieverIndexRebuildError("No valid chunks created from files")
         metadata = self._semantic_deduplicate(metadata, threshold=0.91)
         self.logger.info(f"Total unique chunks after global deduplication: {len(metadata)}")
         try:
@@ -229,7 +253,7 @@ class HybridRetriever:
             else:
                 faiss_index = faiss.IndexFlatL2(dim)
             faiss_index.add(embs)
-            # Atomic write
+            # Atomic write index
             tmp_index = self.index_file.with_suffix('.tmp')
             faiss.write_index(faiss_index, str(tmp_index))
             tmp_index.replace(self.index_file)
@@ -346,4 +370,6 @@ class HybridRetriever:
         """
         self.logger.info("Manual index rebuild triggered...")
         notify_admin("Manual HybridRetriever index rebuild triggered by user.")
+        if not self._can_build_indices():
+            raise RetrieverIndexRebuildError("Cannot rebuild index: no valid source data in inform_dir.")
         self._build_indices()

@@ -1,3 +1,4 @@
+import os
 import asyncio
 import sys
 from pathlib import Path
@@ -7,6 +8,7 @@ from datetime import datetime, timedelta
 import logging
 from dataclasses import dataclass, asdict
 import json
+import random
 
 from logs import get_logger
 from rag_chunk_tracker import ChunkUsageTracker
@@ -78,11 +80,19 @@ class RAGSystem:
 
         # --- Флаг для graceful shutdown ---
         self.should_exit = False
+        self._register_signals()
+
+    def _register_signals(self):
+        # Только SIGINT обрабатывается кроссплатформенно в Python
         signal.signal(signal.SIGINT, self.handle_shutdown)
-        signal.signal(signal.SIGTERM, self.handle_shutdown)
+        # SIGTERM на Windows не поддерживается, но оставим для совместимости
+        try:
+            signal.signal(signal.SIGTERM, self.handle_shutdown)
+        except (AttributeError, ValueError):
+            pass
 
     def setup_paths(self):
-        """Проверка и создание необходимых директорий"""
+        """Проверка и создание необходимых директорий и прав"""
         required_dirs = [
             self.data_dir,
             self.log_dir,
@@ -95,30 +105,52 @@ class RAGSystem:
         for directory in required_dirs:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
+                # Проверка прав на запись
+                test_file = directory / ".write_test"
+                with open(test_file, "w") as f:
+                    f.write("test")
+                test_file.unlink()
             except Exception as e:
-                raise InitializationError(f"Failed to create directory {directory}: {e}")
+                raise InitializationError(f"Failed to create or write to directory {directory}: {e}")
 
         # Проверка критичных файлов
         if not self.topics_file.exists():
             raise ConfigurationError("topics.txt not found")
+        if not os.access(self.topics_file, os.R_OK):
+            raise ConfigurationError(f"topics.txt ({self.topics_file}) is not readable")
 
     def load_processed_topics(self) -> Set[str]:
         """Загрузка списка обработанных тем через state_manager"""
-        return self.state_manager.get_processed_topics()
+        try:
+            return self.state_manager.get_processed_topics()
+        except Exception as e:
+            self.logger.critical(f"Failed to load processed topics: {e}")
+            raise InitializationError("State file is corrupted or unreadable")
 
     def save_processed_topic(self, topic: str):
         """Сохранение обработанной темы через state_manager"""
-        self.state_manager.add_processed_topic(topic)
+        try:
+            self.state_manager.add_processed_topic(topic)
+        except Exception as e:
+            self.logger.critical(f"Failed to save processed topic: {e}")
+            raise FileOperationError("Failed to update state file")
 
     def add_failed_topic(self, topic: str, error: str):
         """Сохранение темы с ошибкой через state_manager"""
-        self.state_manager.add_failed_topic(topic, error)
+        try:
+            self.state_manager.add_failed_topic(topic, error)
+        except Exception as e:
+            self.logger.critical(f"Failed to add failed topic: {e}")
 
     async def notify_error(self, message: str):
         """Отправка уведомления об ошибке в Telegram"""
         if hasattr(self, 'telegram'):
             try:
-                await self.telegram.send_text(
+                # TelegramPublisher.send_text - sync, поэтому вызываем через run_in_executor
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None,
+                    self.telegram.send_text,
                     f"🚨 RAG System Error:\n{message}"
                 )
             except Exception as e:
@@ -143,9 +175,13 @@ class RAGSystem:
         """Загрузка оставшихся тем для обработки"""
         try:
             all_topics = self.topics_file.read_text(encoding='utf-8').splitlines()
+            all_topics = [t.strip() for t in all_topics if t.strip()]
             processed = self.load_processed_topics()
             remaining = [t for t in all_topics if t not in processed]
-            self.logger.info(f"Loaded {len(remaining)} remaining topics")
+            if not remaining:
+                self.logger.warning("No topics left for processing.")
+            else:
+                self.logger.info(f"Loaded {len(remaining)} remaining topics")
             return remaining
         except Exception as e:
             raise ProcessingError(f"Failed to load topics: {e}")
@@ -155,6 +191,10 @@ class RAGSystem:
         topics = self._load_remaining_topics()
         self.stats.total_topics = len(topics)
         self.stats.start_time = datetime.now()
+
+        if len(topics) == 0:
+            self.logger.warning("Topic list is empty, nothing to process.")
+            return
 
         for topic in topics:
             if self.should_exit:
@@ -166,15 +206,18 @@ class RAGSystem:
                     f"Processing topic {self.stats.processed_topics + 1}/{self.stats.total_topics}: {topic}"
                 )
                 text_length = await self.process_single_topic(topic)
-                self.stats.processed_topics += 1
-                self.stats.total_chars_generated += text_length
-                self.stats.avg_chars_per_topic = (
-                    self.stats.total_chars_generated / self.stats.processed_topics
-                )
-                self.save_processed_topic(topic)
-                self.stats.last_processing_time = (
-                    datetime.now() - processing_start
-                ).total_seconds()
+                if text_length is not None and text_length > 0:
+                    self.stats.processed_topics += 1
+                    self.stats.total_chars_generated += text_length
+                    self.stats.avg_chars_per_topic = (
+                        self.stats.total_chars_generated / self.stats.processed_topics
+                    )
+                    self.save_processed_topic(topic)
+                    self.stats.last_processing_time = (
+                        datetime.now() - processing_start
+                    ).total_seconds()
+                else:
+                    raise ProcessingError("Text length is zero or None")
             except ProcessingError as e:
                 error_msg = f"ProcessingError: {e}"
                 self.logger.error(error_msg, exc_info=True)
@@ -192,7 +235,7 @@ class RAGSystem:
                 await self.notify_error(error_msg)
                 await asyncio.sleep(5)
 
-    async def process_single_topic(self, topic: str) -> int:
+    async def process_single_topic(self, topic: str) -> Optional[int]:
         """
         Обработка одной темы.
         Возвращает длину сгенерированного текста.
@@ -200,8 +243,6 @@ class RAGSystem:
         try:
             # Получение контекста из RAG
             context = self.retriever.retrieve(topic)
-
-            # Обогащение контекста дополнительными инструментами
             context = enrich_context_with_tools(topic, context, self.inform_dir)
 
             # Поиск файлов промптов
@@ -211,11 +252,9 @@ class RAGSystem:
             if not prompt1_files or not prompt2_files:
                 raise ProcessingError("No prompt files found")
 
-            import random
             file1 = random.choice(prompt1_files)
             file2 = random.choice(prompt2_files)
 
-            # Генерация промпта
             prompt_full = get_prompt_parts(
                 data_dir=self.data_dir,
                 topic=topic,
@@ -230,20 +269,24 @@ class RAGSystem:
                 else self.llm_config["max_chars"]
             )
 
-            # Генерация текста
+            # Генерация текста (LMClient.generate - должен быть async)
             text = await self.lm.generate(
                 topic,
                 max_chars=max_chars
             )
 
-            if not text:
+            if not text or not isinstance(text, str) or len(text.strip()) == 0:
                 raise ProcessingError("Failed to generate text")
 
-            # Отправка в Telegram
+            # Отправка в Telegram: методы sync, вызываем через run_in_executor
+            loop = asyncio.get_running_loop()
             if "{UPLOADFILE}" in prompt_full:
                 await self.handle_media_post(text)
             else:
-                await self.telegram.send_text(text)
+                # wrap sync call in executor
+                result = await loop.run_in_executor(None, self.telegram.send_text, text)
+                if result is None:
+                    raise ProcessingError("Failed to send text to Telegram")
 
             self.logger.info(
                 f"Successfully processed topic: {topic}, "
@@ -265,6 +308,7 @@ class RAGSystem:
             media_type = get_media_type(media_file)
             self.logger.info(f"Selected media file: {media_file} (type: {media_type})")
 
+            loop = asyncio.get_running_loop()
             media_handlers = {
                 "image": self.telegram.send_photo,
                 "video": self.telegram.send_video,
@@ -273,14 +317,21 @@ class RAGSystem:
             }
 
             if media_type in media_handlers:
-                await media_handlers[media_type](media_file, caption=text)
+                result = await loop.run_in_executor(
+                    None, media_handlers[media_type], media_file, text
+                )
+                if result is None:
+                    raise ProcessingError(f"Failed to send {media_type} to Telegram")
             else:
                 self.logger.warning(f"Unknown media type: {media_file}")
-                await self.telegram.send_text(text)
+                result = await loop.run_in_executor(None, self.telegram.send_text, text)
+                if result is None:
+                    raise ProcessingError("Failed to send fallback text to Telegram")
 
         except Exception as e:
             self.logger.error(f"Media handling error: {e}")
-            await self.telegram.send_text(text)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self.telegram.send_text, text)
 
     async def run(self):
         """Основной метод запуска системы"""
@@ -342,8 +393,10 @@ class RAGSystem:
                 enable_preview=self.telegram_config["enable_preview"]
             )
 
-            # Проверка соединения с Telegram
-            if not await self.telegram.check_connection():
+            # Проверка соединения с Telegram (sync, обернуть в executor)
+            loop = asyncio.get_running_loop()
+            telegram_ok = await loop.run_in_executor(None, self.telegram.check_connection)
+            if not telegram_ok:
                 raise TelegramError("Failed to connect to Telegram")
 
             self.logger.info("System initialized successfully")
@@ -356,7 +409,7 @@ class RAGSystem:
             await self.notify_error(f"Configuration error: {e}")
             sys.exit(1)
         except Exception as e:
-            self.logger.critical(f"Unexpected error: {e}")
+            self.logger.critical(f"Unexpected error: {e}", exc_info=True)
             await self.notify_error(f"Unexpected error: {e}")
             sys.exit(1)
         finally:

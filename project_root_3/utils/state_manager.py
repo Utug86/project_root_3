@@ -5,7 +5,10 @@ import threading
 from pathlib import Path
 from typing import Dict, Any, Set, Optional, Union
 from datetime import datetime
-import time
+
+class StateCorruptionError(Exception):
+    """Явное исключение при сбросе состояния из-за поврежденного файла."""
+    pass
 
 class StateManager:
     """
@@ -32,18 +35,21 @@ class StateManager:
         backup_dir: Optional[Union[str, Path]] = None,
         logger: Optional[logging.Logger] = None,
         autosave: bool = True,
+        max_state_size_mb: int = 10,  # контроль размера state.json
     ):
         """
         :param state_file: Путь к файлу состояния (JSON).
         :param backup_dir: Путь для хранения резервных копий (по умолчанию — рядом с state_file).
         :param logger: Logger экземпляр, если не задан — создается свой.
         :param autosave: Автоматически сохранять состояние после изменений.
+        :param max_state_size_mb: Максимальный размер state.json в МБ, при превышении — архивирование.
         """
         self.state_file = Path(state_file)
         self.backup_dir = Path(backup_dir) if backup_dir else self.state_file.parent
         self.autosave = autosave
         self.logger = logger or self._default_logger()
-        self.state: Dict[str, Any] = self._load_state()
+        self.max_state_size_mb = max_state_size_mb
+        self.state: Dict[str, Any] = self._try_load_state_or_raise()
 
     def _default_logger(self) -> logging.Logger:
         logger = logging.getLogger("state_manager")
@@ -104,9 +110,10 @@ class StateManager:
                 state["statistics"][k] = 0
         return state
 
-    def _load_state(self) -> Dict[str, Any]:
+    def _try_load_state_or_raise(self) -> Dict[str, Any]:
         """
         Надежная загрузка состояния: восстановление структуры, резервирование битых файлов, восстановление из tmp при сбое.
+        Явно выбрасывает исключение StateCorruptionError при сбросе состояния.
         """
         with self._file_lock:
             # Если остался tmp-файл (сбой при сохранении) — восстановить из него
@@ -125,12 +132,14 @@ class StateManager:
                     with open(self.state_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                     data = self._validate_state(data)
+                    self.logger.info(f"Loaded state from {self.state_file} ({len(str(data))} bytes)")
                     return data
                 except Exception as e:
                     # Сохраняем поврежденный файл
                     self.logger.error(f"Failed to load state: {e}, backing up and creating default state.")
                     self._safe_backup(self.state_file, suffix=".broken")
-                    return self._create_default_state()
+                    # Явно выбрасываем ошибку
+                    raise StateCorruptionError(f"State file '{self.state_file}' is corrupted: {e}. Backup created. Manual intervention required.")
             else:
                 self.logger.info("No state file found, creating new default state.")
                 return self._create_default_state()
@@ -151,6 +160,7 @@ class StateManager:
     def save_state(self) -> None:
         """
         Атомарно сохраняет состояние с резервным копированием и защитой от гонок.
+        Контролирует размер state.json — архивирует, если превышен лимит.
         """
         with self._file_lock:
             # Валидируем структуру перед записью
@@ -168,6 +178,30 @@ class StateManager:
             except Exception as e:
                 self.logger.critical(f"Failed to save state: {e}")
                 raise
+
+            # Контроль размера state.json
+            state_size_mb = self.state_file.stat().st_size / (1024 * 1024)
+            if state_size_mb > self.max_state_size_mb:
+                archive_path = self._archive_state()
+                self.logger.warning(f"State file exceeded {self.max_state_size_mb} MB, archived to {archive_path}")
+
+    def _archive_state(self) -> Optional[Path]:
+        """
+        Архивирует state.json при превышении лимита размера.
+        """
+        try:
+            ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            archive_name = f"{self.state_file.stem}.archive_{ts}{self.state_file.suffix}"
+            archive_path = self.backup_dir / archive_name
+            shutil.copy2(self.state_file, archive_path)
+            # Обрезаем основной state до дефолтного (сохраняется только мета)
+            self.state = self._create_default_state()
+            self.save_state()
+            self.logger.info(f"Archived state to {archive_path} and reset state.")
+            return archive_path
+        except Exception as e:
+            self.logger.error(f"Failed to archive state file: {e}")
+            return None
 
     def add_processed_topic(self, topic: str) -> None:
         """
@@ -227,41 +261,52 @@ class StateManager:
     def batch_add_processed(self, topics: Set[str]) -> None:
         """
         Групповое добавление обработанных тем.
+        Если при добавлении одной из тем возникает ошибка — транзакционно откатываем все.
         """
         with self._file_lock:
-            new_topics = topics - self.state["processed_topics"]
-            self.state["processed_topics"].update(new_topics)
-            self.state["statistics"]["total_processed"] += len(new_topics)
-            self.state["statistics"]["successful"] += len(new_topics)
-            if self.autosave:
-                self.save_state()
+            backup = self.state.copy()
+            try:
+                new_topics = topics - self.state["processed_topics"]
+                self.state["processed_topics"].update(new_topics)
+                self.state["statistics"]["total_processed"] += len(new_topics)
+                self.state["statistics"]["successful"] += len(new_topics)
+                if self.autosave:
+                    self.save_state()
+            except Exception as e:
+                self.logger.error(f"Batch add processed failed: {e}. Rolling back.")
+                self.state = backup
 
     def batch_add_failed(self, topics_errors: Dict[str, str], max_attempts: Optional[int] = None) -> None:
         """
-        Групповое добавление тем с ошибками.
+        Групповое добавление тем с ошибками. Транзакционно.
         """
         with self._file_lock:
-            for topic, error in topics_errors.items():
-                entry = self.state["failed_topics"].get(topic, {})
-                attempts = entry.get("attempts", 0) + 1
-                if max_attempts is not None and attempts > max_attempts:
-                    self.logger.warning(f"Topic {topic} exceeded max_attempts={max_attempts}, skipping.")
-                    continue
-                self.state["failed_topics"][topic] = {
-                    "error": error,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "attempts": attempts
-                }
-                self.state["statistics"]["failed"] += 1
-            if self.autosave:
-                self.save_state()
+            backup = self.state.copy()
+            try:
+                for topic, error in topics_errors.items():
+                    entry = self.state["failed_topics"].get(topic, {})
+                    attempts = entry.get("attempts", 0) + 1
+                    if max_attempts is not None and attempts > max_attempts:
+                        self.logger.warning(f"Topic {topic} exceeded max_attempts={max_attempts}, skipping.")
+                        continue
+                    self.state["failed_topics"][topic] = {
+                        "error": error,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "attempts": attempts
+                    }
+                    self.state["statistics"]["failed"] += 1
+                if self.autosave:
+                    self.save_state()
+            except Exception as e:
+                self.logger.error(f"Batch add failed failed: {e}. Rolling back.")
+                self.state = backup
 
     def reload_state(self) -> None:
         """
         Принудительно перечитать состояние из файла (например, если другая нода изменила state).
         """
         with self._file_lock:
-            self.state = self._load_state()
+            self.state = self._try_load_state_or_raise()
 
     def manual_save(self) -> None:
         """

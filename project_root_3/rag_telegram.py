@@ -7,6 +7,7 @@ import logging
 import time
 import html
 import traceback
+import functools
 
 def get_logger(name: str, logfile: Optional[Union[str, Path]] = None, level=logging.INFO) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -28,6 +29,27 @@ def escape_html(text: str) -> str:
     Экранирует HTML-спецсимволы для Telegram (HTML-mode).
     """
     return html.escape(text, quote=False)
+
+def retry_on_failure(max_retries=3, retry_delay=3.0):
+    """
+    Декоратор для автоматического повтора при ошибках сетевого уровня.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exc = e
+                    tb = traceback.format_exc()
+                    logger.warning(f"Telegram API request failed (attempt {attempt}): {e}\n{tb}")
+                    time.sleep(retry_delay)
+            logger.error(f"Telegram API request failed after {max_retries} attempts: {last_exc}")
+            raise TelegramError(f"Telegram API request failed after {max_retries} attempts: {last_exc}") from last_exc
+        return wrapper
+    return decorator
 
 class TelegramPublisher:
     """
@@ -59,25 +81,16 @@ class TelegramPublisher:
         self.enable_preview = enable_preview
         self.logger = logger or get_logger("rag_telegram")
 
+    @retry_on_failure()
     def _post(self, method: str, data: dict, files: dict = None) -> dict:
         url = f"https://api.telegram.org/bot{self.bot_token}/{method}"
-        last_exc = None
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                resp = requests.post(url, data=data, files=files, timeout=20)
-                resp.raise_for_status()
-                result = resp.json()
-                if not result.get("ok"):
-                    self.logger.error(f"Telegram API error: {result}")
-                    raise TelegramError(f"Telegram API error: {result}")
-                return result
-            except Exception as e:
-                last_exc = e
-                tb = traceback.format_exc()
-                self.logger.warning(f"Telegram API request failed (attempt {attempt}): {e}\n{tb}")
-                time.sleep(self.retry_delay)
-        self.logger.error(f"Telegram API request failed after {self.max_retries} attempts: {last_exc}")
-        raise TelegramError(f"Telegram API request failed after {self.max_retries} attempts: {last_exc}") from last_exc
+        resp = requests.post(url, data=data, files=files, timeout=20)
+        resp.raise_for_status()
+        result = resp.json()
+        if not result.get("ok"):
+            self.logger.error(f"Telegram API error: {result}")
+            raise TelegramError(f"Telegram API error: {result}")
+        return result
 
     def send_text(
         self,
@@ -303,23 +316,20 @@ class TelegramPublisher:
             self.logger.error(f"Failed to send media group: {e}\n{traceback.format_exc()}")
             return None
 
+    @retry_on_failure()
     def check_connection(self) -> bool:
         """
         Проверка связи с Telegram Bot API (getMe).
         """
         url = f"https://api.telegram.org/bot{self.bot_token}/getMe"
-        try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            if data.get("ok"):
-                self.logger.info("Telegram bot connection OK")
-                return True
-            else:
-                self.logger.error("Telegram bot connection failed")
-                return False
-        except Exception as e:
-            self.logger.error(f"Telegram bot connection error: {e}\n{traceback.format_exc()}")
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("ok"):
+            self.logger.info("Telegram bot connection OK")
+            return True
+        else:
+            self.logger.error("Telegram bot connection failed")
             return False
 
     def delayed_post(
