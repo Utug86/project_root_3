@@ -11,13 +11,14 @@
     },
     "language_model": {
         "url": "http://localhost:1234/v1/chat/completions",
-        "model_name": "qwen3-32b",
-        "max_tokens": 4096,
-        "max_chars": 20000,
-        "temperature": 0.7,
-        "timeout": 900,
-        "history_limit": 3,
-        "system_message": "Вы — эксперт по бровям и ресницам."
+    	"model_name": "qwen3-32b",
+    	"max_tokens": 4096,
+    	"max_chars": 20000,
+    	"temperature": 0.7,
+    	"timeout": 1500,
+    	"history_limit": 3,
+    	"system_message": "Вы — эксперт по бровям и ресницам.",
+    	"max_chars_with_media": 4096
     },
     "retrieval": {
         "chunk_size": 500,
