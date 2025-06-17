@@ -52,14 +52,22 @@ class LMClient:
     async def generate(
         self, 
         topic: str, 
-        uploadfile: Optional[str] = None
+        uploadfile: Optional[str] = None,
+        max_chars: Optional[int] = None
     ) -> str:
         """
         Генерирует текст по теме с использованием контекста и инструментов.
         :param topic: Тема для генерации
         :param uploadfile: путь к прикреплённому файлу (если нужен в prompt)
+        :param max_chars: ограничение на количество символов (опционально, перекрывает self.max_chars)
         :return: Ответ LLM (или строка с ошибкой)
         """
+        prev_max_chars = self.max_chars
+        if max_chars is not None:
+            if not isinstance(max_chars, int) or max_chars <= 0:
+                self.logger.error(f"Некорректное значение max_chars: {max_chars}")
+                return "[Ошибка: некорректный лимит символов]"
+            self.max_chars = max_chars
         try:
             context = await self._get_full_context(topic)
             prompt = self._build_prompt(topic, context, uploadfile)
@@ -67,13 +75,20 @@ class LMClient:
         except Exception as e:
             self.logger.error(f"Critical error in generate: {e}")
             return "[Критическая ошибка генерации]"
+        finally:
+            # Всегда восстанавливаем лимит
+            self.max_chars = prev_max_chars
 
     async def _get_full_context(self, topic: str) -> str:
         """
         Получает и обогащает контекст по теме.
         """
         try:
-            ctx = self.retriever.retrieve(topic)
+            # Проверяем асинхронность retriever
+            if asyncio.iscoroutinefunction(getattr(self.retriever, "retrieve", None)):
+                ctx = await self.retriever.retrieve(topic)
+            else:
+                ctx = self.retriever.retrieve(topic)
             ctx = enrich_context_with_tools(topic, ctx, self.inform_dir)
             return ctx
         except Exception as e:
@@ -120,9 +135,19 @@ class LMClient:
                     messages = self._update_history(messages, text)
                 else:
                     self.logger.warning(f"Force truncating text from {len(text)} to {self.max_chars} chars")
-                    return text[:self.max_chars-10] + "..."
+                    if self.max_chars > 10:
+                        return text[:self.max_chars-10] + "..."
+                    else:
+                        return text[:self.max_chars]
             except asyncio.TimeoutError as e:
                 self.logger.error(f"Timeout in attempt {attempt+1}: {e}")
+            except aiohttp.ClientResponseError as e:
+                # Обработка возможного rate limit (HTTP 429)
+                if getattr(e, "status", None) == 429:
+                    self.logger.warning(f"LLM API rate limited (HTTP 429) on attempt {attempt+1}")
+                    await asyncio.sleep(5)
+                else:
+                    self.logger.error(f"LLM request ClientResponseError in attempt {attempt+1}: {e}")
             except Exception as e:
                 self.logger.error(f"LLM request error in attempt {attempt+1}: {e}")
             await asyncio.sleep(2)
@@ -141,6 +166,12 @@ class LMClient:
         timeout = aiohttp.ClientTimeout(total=self.timeout)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(self.model_url, json=payload) as resp:
+                if resp.status == 429:
+                    raise aiohttp.ClientResponseError(
+                        resp.request_info, resp.history,
+                        status=resp.status, message="Rate limit",
+                        headers=resp.headers
+                    )
                 if resp.status != 200:
                     raise LMClientException(f"LLM API error: HTTP {resp.status}")
                 data = await resp.json()
@@ -170,6 +201,9 @@ class LMClient:
         """
         Обновляет историю сообщений для запроса к LLM (ограничивает по self.history_lim).
         """
+        if self.history_lim <= 0:
+            self.logger.warning(f"history_lim <= 0: диалоговая история не будет сохраняться.")
+            return messages
         # Добавляем assistant/user
         history = messages[:]
         history.append({"role": "assistant", "content": text})

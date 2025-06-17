@@ -8,6 +8,7 @@ import time
 import html
 import traceback
 import functools
+import re
 
 def get_logger(name: str, logfile: Optional[Union[str, Path]] = None, level=logging.INFO) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -29,6 +30,45 @@ def escape_html(text: str) -> str:
     Экранирует HTML-спецсимволы для Telegram (HTML-mode).
     """
     return html.escape(text, quote=False)
+
+def filter_llm_text(text: str) -> str:
+    """
+    Удаляет служебные размышления и мусор LLM из текста перед отправкой в Telegram.
+    """
+    if not text:
+        return ""
+    # Remove <think>...</think> or <think>...
+    text = re.sub(r'<think>.*?(</think>|$)', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'(?i)размышления:.*(\n|$)', '', text)
+    text = re.sub(r'(?i)reasoning:.*(\n|$)', '', text)
+    text = re.sub(r'<reason>.*?(</reason>|$)', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+def split_text_for_telegram(text: str, max_len: int = 4096) -> List[str]:
+    """
+    Делит длинный текст на части максимально допустимой длины для Telegram.
+    """
+    if len(text) <= max_len:
+        return [text]
+    # Аккуратно бьем по абзацам, если возможно
+    parts, current = [], ''
+    for paragraph in text.split('\n\n'):
+        if len(current) + len(paragraph) + 2 <= max_len:
+            current += (('\n\n' if current else '') + paragraph)
+        else:
+            if current:
+                parts.append(current)
+            if len(paragraph) > max_len:
+                # Если один абзац слишком длинный — режем жёстко
+                for i in range(0, len(paragraph), max_len):
+                    parts.append(paragraph[i:i + max_len])
+                current = ''
+            else:
+                current = paragraph
+    if current:
+        parts.append(current)
+    return parts
 
 def retry_on_failure(max_retries=3, retry_delay=3.0):
     """
@@ -85,7 +125,12 @@ class TelegramPublisher:
     def _post(self, method: str, data: dict, files: dict = None) -> dict:
         url = f"https://api.telegram.org/bot{self.bot_token}/{method}"
         resp = requests.post(url, data=data, files=files, timeout=20)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except Exception:
+            # Логируем причину ошибки
+            self.logger.error(f"Telegram API HTTP error: {resp.text}")
+            raise
         result = resp.json()
         if not result.get("ok"):
             self.logger.error(f"Telegram API error: {result}")
@@ -100,31 +145,39 @@ class TelegramPublisher:
         reply_to_message_id: Optional[int] = None,
         silent: bool = False,
         html_escape: bool = True
-    ) -> Optional[int]:
+    ) -> Optional[List[int]]:
         """
-        Отправка текстового сообщения в канал.
-        :param html_escape: экранировать HTML-спецсимволы (True по умолчанию)
-        :return: message_id отправленного сообщения или None при ошибке
+        Отправка текстового сообщения в канал с учётом лимита длины.
+        Разбивает текст, фильтрует размышления, аккуратно ведёт лог.
+        :return: список message_id отправленных сообщений или None при ошибке
         """
+        text = filter_llm_text(text)
         if html_escape and parse_mode == "HTML":
             text = escape_html(text)
-        data = {
-            "chat_id": self.channel_id,
-            "text": text,
-            "parse_mode": parse_mode,
-            "disable_web_page_preview": not (disable_preview if disable_preview is not None else self.enable_preview),
-            "disable_notification": silent,
-        }
-        if reply_to_message_id:
-            data["reply_to_message_id"] = reply_to_message_id
-        try:
-            resp = self._post("sendMessage", data)
-            msg_id = resp.get("result", {}).get("message_id")
-            self.logger.info(f"Message posted to Telegram (id={msg_id})")
-            return msg_id
-        except Exception as e:
-            self.logger.error(f"Failed to send text message: {e}\n{traceback.format_exc()}")
-            return None
+        if not text:
+            text = "Извините, произошла ошибка генерации ответа."
+        parts = split_text_for_telegram(text)
+        message_ids = []
+        for idx, part in enumerate(parts):
+            data = {
+                "chat_id": self.channel_id,
+                "text": part,
+                "parse_mode": parse_mode,
+                "disable_web_page_preview": not (disable_preview if disable_preview is not None else self.enable_preview),
+                "disable_notification": silent,
+            }
+            if reply_to_message_id and idx == 0:
+                data["reply_to_message_id"] = reply_to_message_id
+            try:
+                resp = self._post("sendMessage", data)
+                msg_id = resp.get("result", {}).get("message_id")
+                self.logger.info(f"Message part {idx + 1}/{len(parts)} posted to Telegram (id={msg_id})")
+                message_ids.append(msg_id)
+            except Exception as e:
+                self.logger.error(f"Failed to send text message part {idx + 1}: {e}\n{traceback.format_exc()}")
+                # Не падаем, продолжаем отправку остальных частей
+                continue
+        return message_ids if message_ids else None
 
     def send_photo(
         self,
@@ -142,6 +195,8 @@ class TelegramPublisher:
         :param html_escape: экранировать HTML в подписи
         :return: message_id или None
         """
+        if caption:
+            caption = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -182,6 +237,8 @@ class TelegramPublisher:
         """
         Отправка видеофайла.
         """
+        if caption:
+            caption = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -222,6 +279,8 @@ class TelegramPublisher:
         """
         Отправка аудиофайла.
         """
+        if caption:
+            caption = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -265,6 +324,8 @@ class TelegramPublisher:
         :param html_escape: экранировать HTML в подписи
         :return: message_id или None
         """
+        if caption:
+            caption = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -302,6 +363,10 @@ class TelegramPublisher:
         :param media: список dict с типом ('photo'/'video'), media (file_id/url), caption (optional)
         :return: список message_id или None
         """
+        # Фильтруем подписи в медиа
+        for item in media:
+            if "caption" in item:
+                item["caption"] = filter_llm_text(item["caption"])
         data = {
             "chat_id": self.channel_id,
             "media": json.dumps(media, ensure_ascii=False),
@@ -337,7 +402,7 @@ class TelegramPublisher:
         text: str,
         delay_sec: float,
         **kwargs
-    ) -> Optional[int]:
+    ) -> Optional[List[int]]:
         """
         Отправка сообщения с задержкой.
         """
