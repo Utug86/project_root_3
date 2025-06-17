@@ -84,12 +84,11 @@ class LMClient:
         Получает и обогащает контекст по теме.
         """
         try:
-            # Проверяем асинхронность retriever
             if asyncio.iscoroutinefunction(getattr(self.retriever, "retrieve", None)):
                 ctx = await self.retriever.retrieve(topic)
             else:
                 ctx = self.retriever.retrieve(topic)
-            ctx = enrich_context_with_tools(topic, ctx, self.inform_dir)
+            ctx = enrich_context_with_tools(topic, ctx, self.inform_dir, enforce=True)
             return ctx
         except Exception as e:
             self.logger.warning(f"Ошибка получения/обогащения контекста: {e}")

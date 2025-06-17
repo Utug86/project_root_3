@@ -1,7 +1,7 @@
 import requests
 import json
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple, Dict
 from utils.exceptions import TelegramError
 import logging
 import time
@@ -31,36 +31,77 @@ def escape_html(text: str) -> str:
     """
     return html.escape(text, quote=False)
 
-def filter_llm_text(text: str) -> str:
+def filter_llm_text(text: str) -> Tuple[str, Dict]:
     """
-    Удаляет служебные размышления и мусор LLM из текста перед отправкой в Telegram.
+    Глубокая фильтрация размышлений LLM и мусора, рекурсивно, с поддержкой вложенных тегов и сложных паттернов.
+    Удаляет размышления, Reasoning, AI Thoughts, <think>, <reason>, <thought> и их вложения.
+    Дополнительно убирает таблицы (markdown и plain).
+    Возвращает кортеж: (текст, meta_info).
     """
+    meta_info = {}
     if not text:
-        return ""
-    # Remove <think>...</think> or <think>...
-    text = re.sub(r'<think>.*?(</think>|$)', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'(?i)размышления:.*(\n|$)', '', text)
-    text = re.sub(r'(?i)reasoning:.*(\n|$)', '', text)
-    text = re.sub(r'<reason>.*?(</reason>|$)', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    return text.strip()
+        return "", meta_info
+    filtered = text
+    # Рекурсивное удаление размышлений в тегах
+    patterns = [
+        r'<(think|reason|thought)[^>]*>.*?</\1>',  # <think>...</think>, <reason>...</reason>, <thought>...</thought>
+        r'<(think|reason|thought)[^>]*>.*',        # незакрытые
+        r'(?i)(размышления|reasoning|ai thoughts?|мои размышления|мышление):.*?(\n|$)',  # строковые
+    ]
+    changed = False
+    for patt in patterns:
+        # Рекурсивно удаляем до тех пор, пока что-то меняется
+        while True:
+            new_filtered = re.sub(patt, '', filtered, flags=re.DOTALL | re.IGNORECASE)
+            if new_filtered == filtered:
+                break
+            filtered = new_filtered
+            changed = True
+    if changed:
+        meta_info['filtered_thoughts'] = True
+
+    # Убираем markdown-таблицы (| ... | ... |) и plain-таблицы (разделённые табами)
+    table_pattern_md = r"(?:\|[^\n]*\|(?:\n|$))+"
+    table_pattern_plain = r"(?:[^\n\t]*\t[^\n]*\n)+"
+    filtered_tables = filtered
+    filtered = re.sub(table_pattern_md, '', filtered)
+    if filtered != filtered_tables:
+        meta_info['removed_markdown_table'] = True
+    filtered_tables = filtered
+    filtered = re.sub(table_pattern_plain, '', filtered)
+    if filtered != filtered_tables:
+        meta_info['removed_plain_table'] = True
+
+    # Удаление лишних переводов строк
+    filtered_before = filtered
+    filtered = re.sub(r'\n{3,}', '\n\n', filtered)
+    if filtered != filtered_before:
+        meta_info['cleaned_newlines'] = True
+
+    if filtered != text:
+        meta_info['filtered_llm_text'] = True
+
+    return filtered.strip(), meta_info
 
 def split_text_for_telegram(text: str, max_len: int = 4096) -> List[str]:
     """
-    Делит длинный текст на части максимально допустимой длины для Telegram.
+    Делит длинный текст на части максимально допустимой длины для Telegram, учитывая экранирование.
     """
+    # Telegram считает длину экранированного текста, поэтому сразу экранируем
     if len(text) <= max_len:
         return [text]
     # Аккуратно бьем по абзацам, если возможно
     parts, current = [], ''
     for paragraph in text.split('\n\n'):
-        if len(current) + len(paragraph) + 2 <= max_len:
-            current += (('\n\n' if current else '') + paragraph)
+        # учтем +2 на разделитель
+        candidate = (('\n\n' if current else '') + paragraph)
+        if len(current) + len(candidate) <= max_len:
+            current += candidate
         else:
             if current:
                 parts.append(current)
+            # Если абзац слишком длинный — режем его жёстко
             if len(paragraph) > max_len:
-                # Если один абзац слишком длинный — режем жёстко
                 for i in range(0, len(paragraph), max_len):
                     parts.append(paragraph[i:i + max_len])
                 current = ''
@@ -148,15 +189,17 @@ class TelegramPublisher:
     ) -> Optional[List[int]]:
         """
         Отправка текстового сообщения в канал с учётом лимита длины.
-        Разбивает текст, фильтрует размышления, аккуратно ведёт лог.
+        Глубокая фильтрация размышлений и таблиц, аккуратно ведёт лог, поддерживает meta_info.
         :return: список message_id отправленных сообщений или None при ошибке
         """
-        text = filter_llm_text(text)
+        filtered_text, meta_info = filter_llm_text(text)
         if html_escape and parse_mode == "HTML":
-            text = escape_html(text)
-        if not text:
-            text = "Извините, произошла ошибка генерации ответа."
-        parts = split_text_for_telegram(text)
+            filtered_text = escape_html(filtered_text)
+            meta_info['html_escaped'] = True
+        if not filtered_text:
+            filtered_text = "Извините, произошла ошибка генерации ответа."
+            meta_info['empty_text_substituted'] = True
+        parts = split_text_for_telegram(filtered_text)
         message_ids = []
         for idx, part in enumerate(parts):
             data = {
@@ -171,11 +214,13 @@ class TelegramPublisher:
             try:
                 resp = self._post("sendMessage", data)
                 msg_id = resp.get("result", {}).get("message_id")
-                self.logger.info(f"Message part {idx + 1}/{len(parts)} posted to Telegram (id={msg_id})")
+                log_msg = f"Message part {idx + 1}/{len(parts)} posted to Telegram (id={msg_id})"
+                if meta_info:
+                    log_msg += f" | meta_info: {meta_info}"
+                self.logger.info(log_msg)
                 message_ids.append(msg_id)
             except Exception as e:
                 self.logger.error(f"Failed to send text message part {idx + 1}: {e}\n{traceback.format_exc()}")
-                # Не падаем, продолжаем отправку остальных частей
                 continue
         return message_ids if message_ids else None
 
@@ -196,7 +241,7 @@ class TelegramPublisher:
         :return: message_id или None
         """
         if caption:
-            caption = filter_llm_text(caption)
+            caption, _ = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -238,7 +283,7 @@ class TelegramPublisher:
         Отправка видеофайла.
         """
         if caption:
-            caption = filter_llm_text(caption)
+            caption, _ = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -280,7 +325,7 @@ class TelegramPublisher:
         Отправка аудиофайла.
         """
         if caption:
-            caption = filter_llm_text(caption)
+            caption, _ = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -325,7 +370,7 @@ class TelegramPublisher:
         :return: message_id или None
         """
         if caption:
-            caption = filter_llm_text(caption)
+            caption, _ = filter_llm_text(caption)
         data = {
             "chat_id": self.channel_id,
             "parse_mode": parse_mode,
@@ -366,7 +411,7 @@ class TelegramPublisher:
         # Фильтруем подписи в медиа
         for item in media:
             if "caption" in item:
-                item["caption"] = filter_llm_text(item["caption"])
+                item["caption"], _ = filter_llm_text(item["caption"])
         data = {
             "chat_id": self.channel_id,
             "media": json.dumps(media, ensure_ascii=False),

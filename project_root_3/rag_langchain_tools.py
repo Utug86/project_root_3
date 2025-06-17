@@ -59,31 +59,30 @@ def tool_table_analysis(
         logger.error(f"Ошибка анализа таблицы: {e}")
         return f"[Ошибка анализа таблицы]: {e}"
 
+# ... все ваши импорты и TOOL_KEYWORDS ...
+
 def smart_tool_selector(
     topic: str,
     context: str,
     inform_dir: str,
     tool_keywords: Optional[Dict[str, List[str]]] = None,
     tool_log: Optional[List[str]] = None,
-    max_tool_results: int = 8
+    max_tool_results: int = 8,
+    enforce: bool = False
 ) -> str:
-    """
-    Интеллектуальный селектор инструментов: анализирует промт, вызывает нужные инструменты,
-    поддерживает цепочки, логирует действия, расширяем по ключевым словам.
-    """
     tool_keywords = tool_keywords or TOOL_KEYWORDS
     tool_log = tool_log or []
     topic_lc = topic.lower()
     results = []
     used_tools = []
 
-    # Сначала web search
+    # Web search
     if any(x in topic_lc for x in tool_keywords["web"]):
         logger.info("[smart_tool_selector] Web search triggered")
         tool_log.append("web_search")
         results.append("[Интернет]:\n" + tool_internet_search(topic, num_results=max_tool_results))
         used_tools.append("web_search")
-    # Затем калькулятор
+    # Calculator
     if any(x in topic_lc for x in tool_keywords["calc"]):
         import re
         logger.info("[smart_tool_selector] Calculator triggered")
@@ -92,7 +91,7 @@ def smart_tool_selector(
         expr = m.group(2) if m else topic
         results.append("[Калькулятор]:\n" + tool_calculator(expr))
         used_tools.append("calculator")
-    # Затем таблица
+    # Table
     if any(x in topic_lc for x in tool_keywords["table"]):
         logger.info("[smart_tool_selector] Table analysis triggered")
         tool_log.append("analyze_table")
@@ -102,6 +101,15 @@ def smart_tool_selector(
             used_tools.append("analyze_table")
         else:
             results.append("[Нет подходящих таблиц для анализа]")
+
+    # Fallback если ничего не найдено, но enforce
+    if not results and enforce:
+        logger.info("[smart_tool_selector] Enforce-флаг активен: вызываем fallback инструмент")
+        fallback_result = "[RAG: инструментальное расширение не найдено, добавлен базовый интернет-поиск]\n"
+        fallback_result += tool_internet_search(topic, num_results=1)
+        tool_log.append("fallback_web_search")
+        results.append(fallback_result)
+        used_tools.append("fallback_web_search")
 
     if used_tools:
         logger.info(f"Вызваны инструменты: {used_tools}")
@@ -115,13 +123,13 @@ def enrich_context_with_tools(
     topic: str,
     context: str,
     inform_dir: str,
-    max_tool_results: int = 8
+    max_tool_results: int = 8,
+    enforce: bool = False
 ) -> str:
-    """
-    Добавляет к контексту максимум информации из инструментов для нейросети.
-    """
     logger.info("Расширение контекста инструментами...")
-    tool_result = smart_tool_selector(topic, context, inform_dir, max_tool_results=max_tool_results)
+    tool_result = smart_tool_selector(
+        topic, context, inform_dir, max_tool_results=max_tool_results, enforce=enforce
+    )
     if tool_result:
         context = context + "\n\n[Инструментальное расширение]:\n" + tool_result
         logger.info("Контекст расширен инструментами.")

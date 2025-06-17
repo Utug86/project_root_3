@@ -156,3 +156,132 @@ Traceback (most recent call last):
   File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\main.py", line 299, in process_single_topic
     raise ProcessingError(f"Failed to process topic {topic}: {e}")
 utils.exceptions.ProcessingError: Failed to process topic СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный: LMClient.generate() got an unexpected keyword argument 'max_chars'
+2025-06-16 18:28:14,496 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-16 18:28:14,499 [INFO] [__main__] Loading indices...
+2025-06-16 18:28:14,576 [INFO] [__main__] Loaded 324 chunks
+2025-06-16 18:28:14,611 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T23:10:13.682288', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-16 18:28:14,893 [INFO] [__main__] Telegram bot connection OK
+2025-06-16 18:28:14,895 [INFO] [__main__] System initialized successfully
+2025-06-16 18:28:14,897 [INFO] [__main__] Loaded 30 remaining topics
+2025-06-16 18:28:14,898 [INFO] [__main__] Processing topic 1/30: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный
+2025-06-16 18:28:14,899 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 18:28:20,519 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 18:28:20,529 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 18:28:26,102 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 18:43:26,242 [ERROR] [__main__] Timeout in attempt 1: 
+2025-06-16 18:58:29,252 [ERROR] [__main__] Timeout in attempt 2: 
+2025-06-16 19:13:32,248 [ERROR] [__main__] Timeout in attempt 3: 
+2025-06-16 19:13:34,813 [INFO] [__main__] Message posted to Telegram (id=36)
+2025-06-16 19:13:34,817 [INFO] [__main__] Successfully processed topic: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный, text length: 48
+2025-06-16 19:31:51,455 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-16 19:31:51,510 [INFO] [__main__] Loading indices...
+2025-06-16 19:31:51,579 [INFO] [__main__] Loaded 324 chunks
+2025-06-16 19:31:51,641 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T23:10:13.682288', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-16 19:32:02,929 [INFO] [__main__] Telegram bot connection OK
+2025-06-16 19:32:02,931 [INFO] [__main__] System initialized successfully
+2025-06-16 19:32:02,934 [INFO] [__main__] Loaded 30 remaining topics
+2025-06-16 19:32:02,935 [INFO] [__main__] Processing topic 1/30: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный
+2025-06-16 19:32:02,937 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 19:32:08,308 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 19:32:08,321 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 19:32:13,616 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-16 19:57:14,242 [ERROR] [__main__] Timeout in attempt 1: 
+2025-06-16 20:20:42,894 [INFO] [__main__] Generated text length: 6402 chars
+2025-06-16 20:21:03,958 [ERROR] [__main__] Failed to send text message: Telegram API request failed after 3 attempts: 400 Client Error: Bad Request for url: https://api.telegram.org/bot8055017751:AAFPMu-oZs7UHzMqiM0O0o5MOaa9_ulCOr4/sendMessage
+Traceback (most recent call last):
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\rag_telegram.py", line 43, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\rag_telegram.py", line 88, in _post
+    resp.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Опять он за компом\AppData\Roaming\Python\Python313\site-packages\requests\models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: https://api.telegram.org/bot8055017751:AAFPMu-oZs7UHzMqiM0O0o5MOaa9_ulCOr4/sendMessage
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\rag_telegram.py", line 121, in send_text
+    resp = self._post("sendMessage", data)
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\rag_telegram.py", line 50, in wrapper
+    raise TelegramError(f"Telegram API request failed after {max_retries} attempts: {last_exc}") from last_exc
+utils.exceptions.TelegramError: Telegram API request failed after 3 attempts: 400 Client Error: Bad Request for url: https://api.telegram.org/bot8055017751:AAFPMu-oZs7UHzMqiM0O0o5MOaa9_ulCOr4/sendMessage
+
+2025-06-16 20:21:03,969 [ERROR] [__main__] ProcessingError: Failed to process topic СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный: Failed to send text to Telegram
+Traceback (most recent call last):
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\main.py", line 289, in process_single_topic
+    raise ProcessingError("Failed to send text to Telegram")
+utils.exceptions.ProcessingError: Failed to send text to Telegram
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\main.py", line 208, in process_topics
+    text_length = await self.process_single_topic(topic)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Games\Post_Telegram_RAG_LM_Studio\Post_Telegram_RAG_LM_Studio_World\project_root_3\main.py", line 299, in process_single_topic
+    raise ProcessingError(f"Failed to process topic {topic}: {e}")
+utils.exceptions.ProcessingError: Failed to process topic СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный: Failed to send text to Telegram
+2025-06-17 10:38:06,258 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-17 10:38:06,288 [INFO] [__main__] Loading indices...
+2025-06-17 10:38:06,482 [INFO] [__main__] Loaded 324 chunks
+2025-06-17 10:38:06,520 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T23:10:13.682288', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-17 10:38:06,803 [INFO] [__main__] Telegram bot connection OK
+2025-06-17 10:38:06,805 [INFO] [__main__] System initialized successfully
+2025-06-17 10:38:06,807 [INFO] [__main__] Loaded 30 remaining topics
+2025-06-17 10:38:06,808 [INFO] [__main__] Processing topic 1/30: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный
+2025-06-17 10:38:06,810 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:38:13,894 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:38:13,908 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:38:19,457 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:38:20,307 [ERROR] [__main__] LLM request error in attempt 1: LLM API error: HTTP 404
+2025-06-17 10:38:23,557 [ERROR] [__main__] LLM request error in attempt 2: LLM API error: HTTP 404
+2025-06-17 10:38:26,409 [ERROR] [__main__] LLM request error in attempt 3: LLM API error: HTTP 404
+2025-06-17 10:38:28,762 [INFO] [__main__] Message part 1/1 posted to Telegram (id=37)
+2025-06-17 10:38:28,768 [INFO] [__main__] Successfully processed topic: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный, text length: 48
+2025-06-17 10:40:50,760 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-17 10:40:50,778 [INFO] [__main__] Loading indices...
+2025-06-17 10:40:50,848 [INFO] [__main__] Loaded 324 chunks
+2025-06-17 10:40:50,898 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T23:10:13.682288', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-17 10:41:02,429 [INFO] [__main__] Telegram bot connection OK
+2025-06-17 10:41:02,431 [INFO] [__main__] System initialized successfully
+2025-06-17 10:41:02,433 [INFO] [__main__] Loaded 30 remaining topics
+2025-06-17 10:41:02,434 [INFO] [__main__] Processing topic 1/30: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный
+2025-06-17 10:41:02,437 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:41:08,083 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:41:08,102 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 10:41:13,734 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 11:05:08,261 [INFO] [__main__] Generated text length: 6652 chars
+2025-06-17 11:05:19,777 [INFO] [__main__] Message part 1/2 posted to Telegram (id=38)
+2025-06-17 11:05:35,107 [INFO] [__main__] Message part 2/2 posted to Telegram (id=39)
+2025-06-17 11:05:35,109 [INFO] [__main__] Successfully processed topic: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный, text length: 6652
+2025-06-17 13:48:15,011 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-17 13:48:15,013 [INFO] [__main__] Loading indices...
+2025-06-17 13:48:15,088 [INFO] [__main__] Loaded 324 chunks
+2025-06-17 13:48:15,143 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T23:10:13.682288', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-17 13:48:15,475 [INFO] [__main__] Telegram bot connection OK
+2025-06-17 13:48:15,519 [INFO] [__main__] System initialized successfully
+2025-06-17 13:48:15,522 [INFO] [__main__] Loaded 30 remaining topics
+2025-06-17 13:48:15,524 [INFO] [__main__] Processing topic 1/30: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный
+2025-06-17 13:48:15,525 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 13:48:20,987 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 13:48:21,014 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 13:48:26,547 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 14:02:06,195 [INFO] [__main__] Generated text length: 3761 chars
+2025-06-17 14:02:17,919 [INFO] [__main__] Message part 1/1 posted to Telegram (id=40) | meta_info: {'filtered_thoughts': True, 'filtered_llm_text': True, 'html_escaped': True}
+2025-06-17 14:02:17,979 [INFO] [__main__] Successfully processed topic: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный, text length: 3761
+2025-06-17 14:26:05,148 [INFO] [__main__] Initializing HybridRetriever...
+2025-06-17 14:26:05,150 [INFO] [__main__] Loading indices...
+2025-06-17 14:26:05,219 [INFO] [__main__] Loaded 324 chunks
+2025-06-17 14:26:05,281 [INFO] [__main__] Index metadata: {'index_signature': '2de2ff0aee8e1ec108d6e0bb3b3f7e89128bbdd1a48aa65fbcb9b4e8a4c33572', 'version': '1.2', 'emb_model': 'all-MiniLM-L6-v2', 'cross_model': 'cross-encoder/stsb-roberta-large', 'chunk_size': 500, 'overlap': 100, 'created_at': '2025-06-15T23:10:13.682288', 'num_chunks': 324, 'inform_dir': 'inform'}
+2025-06-17 14:26:05,561 [INFO] [__main__] Telegram bot connection OK
+2025-06-17 14:26:05,633 [INFO] [__main__] System initialized successfully
+2025-06-17 14:26:05,636 [INFO] [__main__] Loaded 30 remaining topics
+2025-06-17 14:26:05,638 [INFO] [__main__] Processing topic 1/30: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный
+2025-06-17 14:26:05,639 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 14:26:10,938 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 14:26:10,957 [INFO] [__main__] Retrieving context for query: 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 14:26:16,174 [INFO] [__main__] Retrieved 2 chunks from index for query 'СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный'
+2025-06-17 14:39:09,952 [INFO] [__main__] Generated text length: 3399 chars
+2025-06-17 14:39:22,527 [INFO] [__main__] Message part 1/1 posted to Telegram (id=41) | meta_info: {'filtered_thoughts': True, 'removed_markdown_table': True, 'filtered_llm_text': True, 'html_escaped': True}
+2025-06-17 14:39:22,529 [INFO] [__main__] Successfully processed topic: СПЕЦТЕХНИКА ДЛЯ СТРОИТЕЛЬСТВА: Выбор экскаватора для котлована: гусеничный vs колесный, text length: 3399
