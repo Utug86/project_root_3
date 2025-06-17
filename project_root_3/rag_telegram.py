@@ -31,78 +31,72 @@ def escape_html(text: str) -> str:
     """
     return html.escape(text, quote=False)
 
-def filter_llm_text(text: str) -> Tuple[str, Dict]:
+def split_by_think_tag(text: str) -> Tuple[str, str]:
     """
-    Глубокая фильтрация размышлений LLM и мусора, рекурсивно, с поддержкой вложенных тегов и сложных паттернов.
-    Удаляет размышления, Reasoning, AI Thoughts, <think>, <reason>, <thought> и их вложения.
-    Дополнительно убирает таблицы (markdown и plain), markdown-ссылки, html-теги, лишние переносы строк.
-    Возвращает кортеж: (текст, meta_info).
+    Делит текст по закрывающему тегу </think>.
+    Возвращает (размышление, основной текст). Если тега нет — размышление пустое, весь текст — ответ.
     """
-    meta_info = {}
-    if not text:
-        return "", meta_info
-    filtered = text
-    # Рекурсивное удаление размышлений в тегах
-    patterns = [
-        r'<(think|reason|thought)[^>]*>.*?</\1>',  # <think>...</think>, <reason>...</reason>, <thought>...</thought>
-        r'<(think|reason|thought)[^>]*>.*',        # незакрытые
-        r'(?i)(размышления|reasoning|ai thoughts?|мои размышления|мышление):.*?(\n|$)',  # строковые
-    ]
-    changed = False
-    for patt in patterns:
-        # Рекурсивно удаляем до тех пор, пока что-то меняется
-        while True:
-            new_filtered = re.sub(patt, '', filtered, flags=re.DOTALL | re.IGNORECASE)
-            if new_filtered == filtered:
-                break
-            filtered = new_filtered
-            changed = True
-    if changed:
-        meta_info['filtered_thoughts'] = True
+    marker = '</think>'
+    parts = text.split(marker, 1)
+    if len(parts) == 2:
+        thought = parts[0].strip()
+        answer = parts[1].strip()
+    else:
+        thought = ""
+        answer = text.strip()
+    return thought, answer
 
-    # Убираем markdown-таблицы (| ... | ... |) и plain-таблицы (разделённые табами)
-    table_pattern_md = r"(?:\|[^\n]*\|(?:\n|$))+"
-    table_pattern_plain = r"(?:[^\n\t]*\t[^\n]*\n)+"
-    filtered_tables = filtered
-    filtered = re.sub(table_pattern_md, '', filtered)
-    if filtered != filtered_tables:
-        meta_info['removed_markdown_table'] = True
-    filtered_tables = filtered
-    filtered = re.sub(table_pattern_plain, '', filtered)
-    if filtered != filtered_tables:
-        meta_info['removed_plain_table'] = True
+def filter_llm_text_for_telegram(raw_text: str) -> str:
+    """
+    1. Делит по </think> (размышление удаляет)
+    2. Преобразует markdown-оформление в Telegram-HTML
+    3. Экранирует HTML (кроме whitelist-тегов)
+    4. Удаляет не-whitelist HTML-теги
+    5. Убирает markdown-таблицы, plain-таблицы, markdown-ссылки, служебные комментарии
+    6. Возвращает чистый HTML-текст для Telegram
+    """
+    # 1. Делим по </think>
+    _, answer = split_by_think_tag(raw_text)
 
-    # Удалить markdown-ссылки [text](url)
-    filtered_before = filtered
-    filtered = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', filtered)
-    if filtered != filtered_before:
-        meta_info['removed_md_links'] = True
+    # 2. Markdown → Telegram HTML (только whitelist-теги)
+    answer = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', answer)
+    answer = re.sub(r'__(.+?)__', r'<b>\1</b>', answer)
+    answer = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', answer)
+    answer = re.sub(r'_(.+?)_', r'<i>\1</i>', answer)
+    answer = re.sub(r'`([^`]+?)`', r'<code>\1</code>', answer)
 
-    # Удалить служебные комментарии типа [RAG ...] или [AI ...]
-    filtered_before = filtered
-    filtered = re.sub(r'\[(?:RAG|AI)[^]]*\]', '', filtered)
-    if filtered != filtered_before:
-        meta_info['removed_llm_service_comments'] = True
+    # 3. Удалить markdown-таблицы и plain-таблицы (если случайно остались)
+    answer = re.sub(r"(?:\|[^\n]*\|(?:\n|$))+", '', answer)
+    answer = re.sub(r"(?:[^\n\t]*\t[^\n]*\n)+", '', answer)
 
-    # Удалить HTML-теги
-    filtered_before = filtered
-    filtered = re.sub(r'<[^>]+>', '', filtered)
-    if filtered != filtered_before:
-        meta_info['removed_html_tags'] = True
+    # 4. Markdown-ссылки → просто текст
+    answer = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', answer)
+    answer = re.sub(r'\[(?:RAG|AI)[^]]*\]', '', answer)
 
-    # Удаление лишних переводов строк
-    filtered_before = filtered
-    filtered = re.sub(r'\n{3,}', '\n\n', filtered)
-    if filtered != filtered_before:
-        meta_info['cleaned_newlines'] = True
+    # 5. Экранируем весь текст, кроме whitelist HTML-тегов Telegram
+    whitelist = ['b', 'i', 'u', 's', 'code', 'pre', 'a']
+    def escape_html_excluding_whitelist(text):
+        # Экранируем всё, кроме whitelist-тегов
+        text = html.escape(text)
+        for tag in whitelist:
+            text = text.replace(f"&lt;{tag}&gt;", f"<{tag}>")
+            text = text.replace(f"&lt;/{tag}&gt;", f"</{tag}>")
+        # <a href='...'> поддержка
+        text = re.sub(
+            r'&lt;a href=&#x27;([^&#]+?)&#x27;&gt;',
+            lambda m: f"<a href='{html.unescape(m.group(1))}'>", text)
+        return text
 
-    # Удалить ведущие и завершающие пробелы
-    filtered = filtered.strip()
+    answer = escape_html_excluding_whitelist(answer)
 
-    if filtered != text:
-        meta_info['filtered_llm_text'] = True
+    # 6. Удаляем все остальные HTML-теги (не whitelist)
+    answer = re.sub(r'<(?!/?(?:' + '|'.join(whitelist) + r')\b)[^>]+>', '', answer)
 
-    return filtered, meta_info
+    # 7. Убираем лишние пробелы по краям строк
+    answer = "\n".join(line.rstrip() for line in answer.splitlines())
+
+    # 8. Финальный trim
+    return answer.strip()
 
 def split_text_for_telegram(text: str, max_len: int = 4096) -> List[str]:
     """
