@@ -35,7 +35,7 @@ def filter_llm_text(text: str) -> Tuple[str, Dict]:
     """
     Глубокая фильтрация размышлений LLM и мусора, рекурсивно, с поддержкой вложенных тегов и сложных паттернов.
     Удаляет размышления, Reasoning, AI Thoughts, <think>, <reason>, <thought> и их вложения.
-    Дополнительно убирает таблицы (markdown и plain).
+    Дополнительно убирает таблицы (markdown и plain), markdown-ссылки, html-теги, лишние переносы строк.
     Возвращает кортеж: (текст, meta_info).
     """
     meta_info = {}
@@ -72,16 +72,37 @@ def filter_llm_text(text: str) -> Tuple[str, Dict]:
     if filtered != filtered_tables:
         meta_info['removed_plain_table'] = True
 
+    # Удалить markdown-ссылки [text](url)
+    filtered_before = filtered
+    filtered = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', filtered)
+    if filtered != filtered_before:
+        meta_info['removed_md_links'] = True
+
+    # Удалить служебные комментарии типа [RAG ...] или [AI ...]
+    filtered_before = filtered
+    filtered = re.sub(r'\[(?:RAG|AI)[^]]*\]', '', filtered)
+    if filtered != filtered_before:
+        meta_info['removed_llm_service_comments'] = True
+
+    # Удалить HTML-теги
+    filtered_before = filtered
+    filtered = re.sub(r'<[^>]+>', '', filtered)
+    if filtered != filtered_before:
+        meta_info['removed_html_tags'] = True
+
     # Удаление лишних переводов строк
     filtered_before = filtered
     filtered = re.sub(r'\n{3,}', '\n\n', filtered)
     if filtered != filtered_before:
         meta_info['cleaned_newlines'] = True
 
+    # Удалить ведущие и завершающие пробелы
+    filtered = filtered.strip()
+
     if filtered != text:
         meta_info['filtered_llm_text'] = True
 
-    return filtered.strip(), meta_info
+    return filtered, meta_info
 
 def split_text_for_telegram(text: str, max_len: int = 4096) -> List[str]:
     """
@@ -189,10 +210,11 @@ class TelegramPublisher:
     ) -> Optional[List[int]]:
         """
         Отправка текстового сообщения в канал с учётом лимита длины.
-        Глубокая фильтрация размышлений и таблиц, аккуратно ведёт лог, поддерживает meta_info.
+        Глубокая фильтрация размышлений и таблиц, markdown, html-тегов, аккуратно ведёт лог, поддерживает meta_info.
         :return: список message_id отправленных сообщений или None при ошибке
         """
         filtered_text, meta_info = filter_llm_text(text)
+        # Экранирование HTML только после всей фильтрации
         if html_escape and parse_mode == "HTML":
             filtered_text = escape_html(filtered_text)
             meta_info['html_escaped'] = True
@@ -221,6 +243,61 @@ class TelegramPublisher:
                 message_ids.append(msg_id)
             except Exception as e:
                 self.logger.error(f"Failed to send text message part {idx + 1}: {e}\n{traceback.format_exc()}")
+                continue
+        return message_ids if message_ids else None
+
+    def send_text_with_button(
+        self,
+        text: str,
+        button_url: str = "https://t.me/Pigment_opercat",
+        button_text: str = "Обратная связь",
+        parse_mode: str = "HTML",
+        disable_preview: Optional[bool] = None,
+        reply_to_message_id: Optional[int] = None,
+        silent: bool = False,
+        html_escape: bool = True
+    ) -> Optional[List[int]]:
+        """
+        Отправка текстового сообщения с inline-кнопкой.
+        """
+        filtered_text, meta_info = filter_llm_text(text)
+        # Экранирование HTML только после всей фильтрации
+        if html_escape and parse_mode == "HTML":
+            filtered_text = escape_html(filtered_text)
+            meta_info['html_escaped'] = True
+        if not filtered_text:
+            filtered_text = "Извините, произошла ошибка генерации ответа."
+            meta_info['empty_text_substituted'] = True
+        parts = split_text_for_telegram(filtered_text)
+        message_ids = []
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": button_text, "url": button_url}
+                ]
+            ]
+        }
+        for idx, part in enumerate(parts):
+            data = {
+                "chat_id": self.channel_id,
+                "text": part,
+                "parse_mode": parse_mode,
+                "reply_markup": json.dumps(reply_markup, ensure_ascii=False),
+                "disable_web_page_preview": not (disable_preview if disable_preview is not None else self.enable_preview),
+                "disable_notification": silent,
+            }
+            if reply_to_message_id and idx == 0:
+                data["reply_to_message_id"] = reply_to_message_id
+            try:
+                resp = self._post("sendMessage", data)
+                msg_id = resp.get("result", {}).get("message_id")
+                log_msg = f"Message part {idx + 1}/{len(parts)} with button posted to Telegram (id={msg_id})"
+                if meta_info:
+                    log_msg += f" | meta_info: {meta_info}"
+                self.logger.info(log_msg)
+                message_ids.append(msg_id)
+            except Exception as e:
+                self.logger.error(f"Failed to send text message with button part {idx + 1}: {e}\n{traceback.format_exc()}")
                 continue
         return message_ids if message_ids else None
 

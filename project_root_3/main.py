@@ -2,7 +2,7 @@ import os
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, Set
+from typing import Optional, Dict, Any, Set, List
 import signal
 from datetime import datetime, timedelta
 import logging
@@ -64,7 +64,7 @@ class RAGSystem:
         self.data_dir = self.config_manager.get_path("data_dir")
         self.log_dir = self.config_manager.get_path("log_dir")
         self.inform_dir = self.config_manager.get_path("inform_dir")
-        self.config_dir = Path("config")  # для совместимости, можно убрать если не требуется
+        self.config_dir = Path("config")
         self.media_dir = self.config_manager.get_path("media_dir")
         self.topics_file = self.data_dir / "topics.txt"
         self.processed_topics_file = self.config_manager.get_path("processed_topics_file")
@@ -85,7 +85,6 @@ class RAGSystem:
     def _register_signals(self):
         # Только SIGINT обрабатывается кроссплатформенно в Python
         signal.signal(signal.SIGINT, self.handle_shutdown)
-        # SIGTERM на Windows не поддерживается, но оставим для совместимости
         try:
             signal.signal(signal.SIGTERM, self.handle_shutdown)
         except (AttributeError, ValueError):
@@ -105,7 +104,6 @@ class RAGSystem:
         for directory in required_dirs:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
-                # Проверка прав на запись
                 test_file = directory / ".write_test"
                 with open(test_file, "w") as f:
                     f.write("test")
@@ -113,7 +111,6 @@ class RAGSystem:
             except Exception as e:
                 raise InitializationError(f"Failed to create or write to directory {directory}: {e}")
 
-        # Проверка критичных файлов
         if not self.topics_file.exists():
             raise ConfigurationError("topics.txt not found")
         if not os.access(self.topics_file, os.R_OK):
@@ -146,7 +143,6 @@ class RAGSystem:
         """Отправка уведомления об ошибке в Telegram"""
         if hasattr(self, 'telegram'):
             try:
-                # TelegramPublisher.send_text - sync, поэтому вызываем через run_in_executor
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(
                     None,
@@ -160,8 +156,6 @@ class RAGSystem:
         """Обработчик сигналов завершения"""
         self.logger.info("Received shutdown signal, cleaning up...")
         self.should_exit = True
-
-        # Сохранение статистики перед выходом
         try:
             stats = self.stats.to_dict()
             stats_file = self.log_dir / f"stats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -171,7 +165,7 @@ class RAGSystem:
         except Exception as e:
             self.logger.error(f"Failed to save statistics: {e}")
 
-    def _load_remaining_topics(self) -> list:
+    def _load_remaining_topics(self) -> List[str]:
         """Загрузка оставшихся тем для обработки"""
         try:
             all_topics = self.topics_file.read_text(encoding='utf-8').splitlines()
@@ -283,7 +277,6 @@ class RAGSystem:
             if "{UPLOADFILE}" in prompt_full:
                 await self.handle_media_post(text)
             else:
-                # wrap sync call in executor
                 result = await loop.run_in_executor(None, self.telegram.send_text, text)
                 if result is None:
                     raise ProcessingError("Failed to send text to Telegram")
@@ -292,7 +285,6 @@ class RAGSystem:
                 f"Successfully processed topic: {topic}, "
                 f"text length: {len(text)}"
             )
-
             return len(text)
 
         except Exception as e:
@@ -400,8 +392,6 @@ class RAGSystem:
                 raise TelegramError("Failed to connect to Telegram")
 
             self.logger.info("System initialized successfully")
-
-            # Основной цикл обработки
             await self.process_topics()
 
         except ConfigurationError as e:
@@ -413,16 +403,12 @@ class RAGSystem:
             await self.notify_error(f"Unexpected error: {e}")
             sys.exit(1)
         finally:
-            # Сохранение статистики и очистка
             if hasattr(self, 'usage_tracker'):
                 self.usage_tracker.save_statistics()
-
-            # Вывод итоговой статистики
             stats = self.stats.to_dict()
             self.logger.info("Final statistics:")
             for key, value in stats.items():
                 self.logger.info(f"{key}: {value}")
-
             self.logger.info("System shutdown complete")
 
 def main():

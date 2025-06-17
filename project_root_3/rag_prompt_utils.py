@@ -39,8 +39,8 @@ def get_prompt_parts(
     file2: Optional[Union[str, Path]] = None,
     extra_vars: Optional[Dict[str, Any]] = None,
     max_context_len_upload: int = 1024,
-    max_context_len_no_upload: int = 4096,
-    max_prompt_len: int = 8192,
+    max_context_len_no_upload: int = 8096,
+    max_prompt_len: int = 26000,
 ) -> str:
     """
     Составляет промпт для LLM на основе шаблонов и переданных параметров.

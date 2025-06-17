@@ -180,21 +180,40 @@ class LMClient:
 
     def _postprocess(self, text: str) -> str:
         """
-        Удаляет markdown-заголовки, разделители, мусор LLM из ответа.
+        Глубокая постобработка LLM-ответа: удаляет markdown-заголовки, разделители, markdown-таблицы, ссылки, html-теги, служебные LLM-комменты, множественные переводы строк и лишние пробелы.
         """
-        rules = [
-            (r"(?m)^#{2,}.*$", ""),        # markdown-заголовки
-            (r"(?m)^---+", ""),            # разделители
-            (r"\[\[.*?\]\]\(.*?\)", ""),   # markdown-ссылки
-            (r"\n{2,}", "\n"),             # множественные переводы строк
-            (r"(as an ai language model|i am an ai language model|я искусственный интеллект|как искусственный интеллект)[\.,]?\s*", "", re.IGNORECASE)
-        ]
-        for rule in rules:
-            if len(rule) == 2:
-                text = re.sub(rule[0], rule[1], text)
-            else:
-                text = re.sub(rule[0], rule[1], text, flags=rule[2])
-        return text.strip()
+        if not text:
+            return ""
+        # Удалить markdown-заголовки (##, ###, ####)
+        text = re.sub(r"(?m)^#{2,}.*$", "", text)
+        # Удалить markdown-разделители --- или ***
+        text = re.sub(r"(?m)^(-{3,}|\*{3,})$", "", text)
+        # Удалить markdown-таблицы (| ... |)
+        text = re.sub(r"(?:\|[^\n]*\|(?:\n|$))+", "", text)
+        # Удалить plain таблицы (разделённые табами)
+        text = re.sub(r"(?:[^\n\t]*\t[^\n]*\n)+", "", text)
+        # Удалить markdown-ссылки [text](url)
+        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+        # Удалить служебные комментарии типа [RAG ...] или [AI ...]
+        text = re.sub(r'\[(?:RAG|AI)[^]]*\]', '', text)
+        # Удалить HTML-теги
+        text = re.sub(r'<[^>]+>', '', text)
+        # Удалить размышления и reasoning-фрагменты
+        text = re.sub(r'(?i)(размышления|reasoning|ai thoughts?|мои размышления|мышление):.*?(\n|$)', '', text)
+        text = re.sub(r'<(think|reason|thought)[^>]*>.*?</\1>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<(think|reason|thought)[^>]*>.*', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Удалить фразы AI (as an ai language model...)
+        text = re.sub(
+            r"(as an ai language model|i am an ai language model|я искусственный интеллект|как искусственный интеллект)[\.,]?\s*",
+            "",
+            text,
+            flags=re.IGNORECASE
+        )
+        # Удалить множественные переводы строк
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        # Ведущие и завершающие пробелы
+        text = text.strip()
+        return text
 
     def _update_history(self, messages: List[Dict[str, str]], text: str) -> List[Dict[str, str]]:
         """

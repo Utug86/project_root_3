@@ -5,7 +5,7 @@ def validate_path(
     path: Path,
     allowed_dir: Path,
     allowed_exts: Optional[Set[str]] = None,
-    max_size_mb: int = 100,
+    max_size_mb: int = 300,
     check_symlink: bool = True
 ) -> (bool, str):
     try:

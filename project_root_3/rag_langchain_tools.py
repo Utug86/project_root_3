@@ -4,6 +4,8 @@ from utils.rag_text_utils import safe_eval
 from utils.rag_table_utils import analyze_table
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import re
+from datetime import datetime
 
 logger = logging.getLogger("rag_langchain_tools")
 if not logger.hasHandlers():
@@ -19,16 +21,70 @@ TOOL_KEYWORDS = {
     "table": ["таблиц", "excel", "csv", "xlsx", "анализируй", "данные", "отчет", "таблица"]
 }
 
-def tool_internet_search(query: str, num_results: int = 8) -> str:
+def slugify(text: str) -> str:
     """
-    Выполняет интернет-поиск по запросу.
+    Преобразует строку в безопасный для имени файла slug, поддерживается кириллица.
+    """
+    s = text.strip()
+    if not s:
+        return "empty"
+    # Оставлять буквы (в т.ч. русские), цифры, - и _
+    s = re.sub(r'[^a-zA-Z0-9а-яА-ЯёЁ_-]', '_', s)
+    s = re.sub(r'_+', '_', s)
+    return s[:60] if s else "empty"
+
+def format_search_results(results: list) -> str:
+    """
+    Переводит результаты поиска в форматированный текст-блок для файла/контекста.
+    Каждый результат нумеруется и визуально отделяется.
+    """
+    formatted = []
+    for i, res in enumerate(results, 1):
+        # Строка обычно вида: "{title} ({link})\n{snippet}"
+        lines = res.split('\n', 1)
+        if len(lines) == 2:
+            title_link, snippet = lines
+        else:
+            title_link, snippet = lines[0], ""
+        formatted.append(f"{i}. {title_link}\n{snippet}".strip())
+    return '\n\n'.join(formatted)
+
+def tool_internet_search(
+    query: str,
+    inform_dir: Optional[str] = None,
+    num_results: int = 8,
+    max_chars: int = 32000
+) -> str:
+    """
+    Выполняет интернет-поиск по запросу, форматирует и сохраняет результаты в папку inform_dir.
     """
     logger.info(f"Вызов интернет-поиска по запросу: {query}")
     results = web_search(query, num_results=num_results)
     if not results:
         logger.warning("Интернет-поиск не дал результатов")
-        return "[Интернет-поиск не дал результатов]"
-    return "\n".join(results)
+        formatted_results = "[Интернет-поиск не дал результатов]"
+    else:
+        formatted_results = format_search_results(results)
+
+    # --- Сохранение результатов поиска в inform_dir ---
+    if inform_dir is not None:
+        try:
+            inform_dir_path = Path(inform_dir)
+            inform_dir_path.mkdir(parents=True, exist_ok=True)
+            fname_base = slugify(query)
+            if not fname_base or fname_base == "empty":
+                fname_base = "internet_search"
+            filename = f"{fname_base}_{datetime.now().strftime('%Y%m%d')}.txt"
+            file_path = inform_dir_path / filename
+            # Обрезаем только если результат очень большой (например, более 32k символов)
+            to_write = formatted_results[:max_chars]
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(to_write)
+            logger.info(f"Результаты поиска сохранены в {file_path}")
+        except Exception as e:
+            logger.error(f"Не удалось сохранить результаты поиска: {e}")
+
+    return formatted_results
 
 def tool_calculator(expr: str, variables: Optional[Dict[str, Any]] = None) -> str:
     """
@@ -59,8 +115,6 @@ def tool_table_analysis(
         logger.error(f"Ошибка анализа таблицы: {e}")
         return f"[Ошибка анализа таблицы]: {e}"
 
-# ... все ваши импорты и TOOL_KEYWORDS ...
-
 def smart_tool_selector(
     topic: str,
     context: str,
@@ -80,7 +134,7 @@ def smart_tool_selector(
     if any(x in topic_lc for x in tool_keywords["web"]):
         logger.info("[smart_tool_selector] Web search triggered")
         tool_log.append("web_search")
-        results.append("[Интернет]:\n" + tool_internet_search(topic, num_results=max_tool_results))
+        results.append("[Интернет]:\n" + tool_internet_search(topic, inform_dir, num_results=max_tool_results))
         used_tools.append("web_search")
     # Calculator
     if any(x in topic_lc for x in tool_keywords["calc"]):
@@ -106,7 +160,7 @@ def smart_tool_selector(
     if not results and enforce:
         logger.info("[smart_tool_selector] Enforce-флаг активен: вызываем fallback инструмент")
         fallback_result = "[RAG: инструментальное расширение не найдено, добавлен базовый интернет-поиск]\n"
-        fallback_result += tool_internet_search(topic, num_results=1)
+        fallback_result += tool_internet_search(topic, inform_dir, num_results=1)
         tool_log.append("fallback_web_search")
         results.append(fallback_result)
         used_tools.append("fallback_web_search")
